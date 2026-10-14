@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SmartPort Connect — Port & Fleet Management System</title>
+  
+  <!-- Leaflet Map CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Clean White Theme Stylesheet -->
+  <link rel="stylesheet" href="css/style.css"/>
+</head>
+<body>
+
+  <!-- ================= AUTH SCREEN ================= -->
+  <div id="auth-screen">
+    <div class="auth-container">
+      <div class="auth-logo">
+        <div class="auth-logo-icon">⚓</div>
+        <div>
+          <h1>SmartPort Connect</h1>
+          <p>Port Management System</p>
+        </div>
+      </div>
+
+      <div class="auth-tabs">
+        <button class="auth-tab active" onclick="switchAuthTab('login', this)">Sign In</button>
+        <button class="auth-tab" onclick="switchAuthTab('signup', this)">Register Account</button>
+      </div>
+
+      <!-- Login Form -->
+      <form class="auth-form active" id="login-form" onsubmit="handleLogin(event)">
+        <div id="login-error" class="auth-error"></div>
+        <div class="fg">
+          <label>Email Address</label>
+          <input type="email" id="login-email" placeholder="admin@smartport.io" required/>
+        </div>
+        <div class="fg">
+          <label>Password</label>
+          <input type="password" id="login-pwd" placeholder="••••••••" required/>
+        </div>
+        <button type="submit" class="btn-primary">Sign In to Dashboard</button>
+        <div class="demo-hint">
+          <strong>Demo Credentials</strong><br>
+          Admin: <code>admin@smartport.io</code> / <code>admin123</code><br>
+          Planner: <code>planner@smartport.io</code> / <code>planner123</code>
+        </div>
+      </form>
+
+      <!-- Signup Form -->
+      <form class="auth-form" id="signup-form" onsubmit="handleSignup(event)">
+        <div id="signup-error" class="auth-error"></div>
+        <div class="fg">
+          <label>Full Name</label>
+          <input type="text" id="su-name" placeholder="Captain Jane Doe" required/>
+        </div>
+        <div class="fg">
+          <label>Email Address</label>
+          <input type="email" id="su-email" placeholder="jane@smartport.io" required/>
+        </div>
+        <div class="fg">
+          <label>Role</label>
+          <select id="su-role">
+            <option value="planner">Port Planner</option>
+            <option value="admin">Administrator</option>
+          </select>
+        </div>
+        <div class="fg">
+          <label>Password</label>
+          <input type="password" id="su-pwd" placeholder="Min 6 characters" required minlength="6"/>
+        </div>
+        <button type="submit" class="btn-primary">Create Account</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= APPLICATION SHELL ================= -->
+  <div id="app-shell">
+    
+    <!-- TOPBAR -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <div class="top-logo" onclick="switchView('dashboard')">
+          <div class="top-logo-icon">⚓</div>
+          <div class="top-logo-text">
+            <h1>SmartPort Connect</h1>
+            <span>Smart Port Control</span>
+          </div>
+        </div>
+        <div class="divider-v"></div>
+        <button class="nav-btn active" onclick="switchView('dashboard', this)">Dashboard</button>
+        <button class="nav-btn" onclick="switchView('vessels', this)">Fleet</button>
+        <button class="nav-btn" onclick="switchView('schedule', this)">Schedule</button>
+        <button class="nav-btn" id="admin-nav" onclick="switchView('admin', this)" style="display:none">Admin</button>
+      </div>
+
+      <div class="topbar-right">
+        <div class="live-badge">
+          <div class="live-dot"></div>
+          LIVE RADAR
+        </div>
+        <div class="weather-pill">
+          <strong id="top-wx-val">Loading...</strong>
+        </div>
+        <div class="user-pill">
+          <div class="u-avatar" id="top-avatar">?</div>
+          <div>
+            <div class="u-name" id="top-name">--</div>
+            <div class="u-role" id="top-role">--</div>
+          </div>
+        </div>
+        <button class="btn-logout" onclick="handleLogout()">Sign Out</button>
+      </div>
+    </header>
+
+    <!-- MAIN LAYOUT -->
+    <div class="main-layout">
+      
+      <!-- SIDEBAR -->
+      <aside class="sidebar">
+        <div class="sidebar-sec-label">Operations</div>
+        <div class="si active" onclick="switchView('dashboard', null, this)">
+          <span class="ic">📊</span>Overview
+        </div>
+        <div class="si" onclick="switchView('vessels', null, this)">
+          <span class="ic">🚢</span>Fleet Status
+          <span class="badge red" id="sb-delayed">2</span>
+        </div>
+        <div class="si" onclick="switchView('schedule', null, this)">
+          <span class="ic">📅</span>Berth Schedule
+        </div>
+        <div class="si" onclick="switchView('alerts', null, this)">
+          <span class="ic">🔔</span>Alert Center
+          <span class="badge red" id="sb-alerts">3</span>
+        </div>
+        <div class="si" onclick="switchView('weather', null, this)">
+          <span class="ic">🌊</span>Meteorology
+        </div>
+        <div class="si admin-only" onclick="switchView('admin', null, this)" style="display:none">
+          <span class="ic">👤</span>User Access
+        </div>
+
+        <div class="sidebar-bottom">
+          <div class="port-health">
+            <div class="ph-title">Terminal Health</div>
+            <div class="ph-row">
+              <span class="ph-k">Berth Occupancy</span>
+              <span class="ph-v y">78%</span>
+            </div>
+            <div class="ph-bar-wrap">
+              <div class="ph-bar" style="width:78%;background:var(--warning)"></div>
+            </div>
+            <div class="ph-row">
+              <span class="ph-k">Crane Workload</span>
+              <span class="ph-v g">62%</span>
+            </div>
+            <div class="ph-bar-wrap">
+              <div class="ph-bar" style="width:62%;background:var(--success)"></div>
+            </div>
+            <div class="ph-row">
+              <span class="ph-k">Harbor Congestion</span>
+              <span class="ph-v r">ELEVATED</span>
+            </div>
+            <div class="ph-bar-wrap">
+              <div class="ph-bar" style="width:84%;background:var(--danger)"></div>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- CONTENT VIEWS -->
+      <main class="content">
+
+        <!-- DASHBOARD VIEW -->
+        <section class="view active" id="view-dashboard">
+          <!-- Metric KPI Cards -->
+          <div class="stat-row">
+            <div class="scard blue">
+              <div class="scard-icon">🚢</div>
+              <div class="scard-label">Total Fleet</div>
+              <div class="scard-val" id="sc-total">--</div>
+              <div class="scard-sub">In port sector</div>
+            </div>
+            <div class="scard green">
+              <div class="scard-icon">⚓</div>
+              <div class="scard-label">Berth Docked</div>
+              <div class="scard-val" id="sc-docked">--</div>
+              <div class="scard-sub">Active offloading</div>
+            </div>
+            <div class="scard cyan">
+              <div class="scard-icon">🛳</div>
+              <div class="scard-label">In Transit</div>
+              <div class="scard-val" id="sc-transit">--</div>
+              <div class="scard-sub">Inbound vessels</div>
+            </div>
+            <div class="scard red">
+              <div class="scard-icon">⚠</div>
+              <div class="scard-label">Delayed</div>
+              <div class="scard-val" id="sc-delayed">--</div>
+              <div class="scard-sub" style="color:var(--danger)">Requires attention</div>
+            </div>
+          </div>
+
+          <!-- Map & Live Alerts -->
+          <div class="three-col">
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title">Live Port Radar & Vessel Tracking</div>
+                <div class="card-actions">
+                  <span style="font-size:12px;color:var(--text-muted)" id="map-vessel-count">-- vessels</span>
+                  <button class="btn-sm acc" onclick="centerMap()">Re-center Radar</button>
+                </div>
+              </div>
+              <div style="position:relative">
+                <div id="map"></div>
+                <div class="map-legend">
+                  <div class="legend-item"><div class="legend-dot" style="background:#2563eb"></div>In Transit</div>
+                  <div class="legend-item"><div class="legend-dot" style="background:#059669"></div>Docked</div>
+                  <div class="legend-item"><div class="legend-dot" style="background:#dc2626"></div>Delayed</div>
+                  <div class="legend-item"><div class="legend-dot" style="background:#d97706"></div>Anchorage</div>
+                  <div class="legend-item"><div class="legend-dot" style="background:#7c3aed"></div>Departing</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title">Real-Time Alerts</div>
+                <div class="card-actions">
+                  <span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;color:#fff;background:var(--danger)" id="alert-count-badge">3</span>
+                </div>
+              </div>
+              <div class="card-body" style="padding:12px">
+                <div class="alerts-list" id="alerts-list"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Fleet at a glance -->
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Fleet Operations Overview</div>
+              <div class="card-actions">
+                <button class="btn-sm acc" onclick="openVesselModal()">+ Register Vessel</button>
+                <button class="btn-sm" onclick="exportFleetCsv()">Export CSV</button>
+                <button class="btn-sm" onclick="switchView('vessels')">View All Fleet</button>
+              </div>
+            </div>
+            <div class="tbl-wrap">
+              <table class="vtable">
+                <thead>
+                  <tr>
+                    <th>Vessel</th>
+                    <th>IMO Number</th>
+                    <th>Cargo Type</th>
+                    <th>Status</th>
+                    <th>Arrival & Berth</th>
+                  </tr>
+                </thead>
+                <tbody id="dash-vessel-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- FLEET VIEW -->
+        <section class="view" id="view-vessels">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <div>
+              <h2 style="font-size:20px;font-weight:800;color:var(--text-primary)">Fleet Registry & Harbor Logistics</h2>
+              <p style="font-size:13px;color:var(--text-muted)">Manage maritime traffic, cargo assignments, and berth allocation</p>
+            </div>
+            <div style="display:flex;gap:10px">
+              <button class="btn-sec" onclick="exportFleetCsv()">📥 Export to CSV</button>
+              <button class="btn-acc" onclick="openVesselModal()">+ Register New Vessel</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Registered Fleet Vessels</div>
+              <div class="card-actions">
+                <input class="fi" style="width:220px;padding:6px 12px" placeholder="Search vessel or IMO..." oninput="filterVessels(this.value)"/>
+                <select class="fi" style="width:140px;padding:6px 10px" onchange="filterVessels(null, this.value)">
+                  <option value="">All Statuses</option>
+                  <option>In Transit</option>
+                  <option>Docked</option>
+                  <option>Delayed</option>
+                  <option>At Anchorage</option>
+                  <option>Departing</option>
+                </select>
+              </div>
+            </div>
+            <div class="tbl-wrap">
+              <table class="vtable">
+                <thead>
+                  <tr>
+                    <th>Vessel Name</th>
+                    <th>IMO Number</th>
+                    <th>Cargo Type</th>
+                    <th>Status</th>
+                    <th>ETA</th>
+                    <th>Berth Slot</th>
+                    <th>Cranes</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="fleet-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- SCHEDULE VIEW -->
+        <section class="view" id="view-schedule">
+          <div>
+            <h2 style="font-size:20px;font-weight:800;color:var(--text-primary)">Berth Scheduling & Conflict Resolver</h2>
+            <p style="font-size:13px;color:var(--text-muted)">Live Gantt allocation across port berths — conflicts flagged proactively</p>
+          </div>
+
+          <div class="conflict-alert">
+            <span style="font-size:18px">⚠</span>
+            <span><strong>Automated Conflict Detected:</strong> MV Arctic Breeze (Cold-Chain) may lose Berth 3 slot due to approach weather delay. Immediate berth rescheduling recommended.</span>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Berth Timeline Allocation (Today)</div>
+              <div class="card-actions">
+                <button class="btn-sm acc" onclick="openVesselModal()">+ Schedule Vessel</button>
+              </div>
+            </div>
+            <div class="gantt-wrap">
+              <div class="gantt-inner" id="gantt-chart"></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Ship-to-Shore (STS) Crane Workload</div>
+            </div>
+            <div class="card-body">
+              <div id="crane-chart" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(180px, 1fr));gap:12px"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ALERTS VIEW -->
+        <section class="view" id="view-alerts">
+          <h2 style="font-size:20px;font-weight:800;color:var(--text-primary)">Harbor Operations & Safety Alerts</h2>
+          
+          <div class="two-col">
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title">Live Alerts Feed</div>
+                <div class="card-actions">
+                  <button class="btn-sm red" onclick="clearAlerts()">Clear Active Alerts</button>
+                </div>
+              </div>
+              <div class="card-body">
+                <div class="alerts-list" id="alerts-list-full"></div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title">Safety & Incident Metrics</div>
+              </div>
+              <div class="card-body">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+                  <div class="scard red" style="padding:14px">
+                    <div class="scard-label">Critical Warnings</div>
+                    <div class="scard-val" style="font-size:24px" id="alc-crit">0</div>
+                  </div>
+                  <div class="scard warn" style="padding:14px">
+                    <div class="scard-label">Cautions</div>
+                    <div class="scard-val" style="font-size:24px" id="alc-warn">0</div>
+                  </div>
+                  <div class="scard blue" style="padding:14px">
+                    <div class="scard-label">Informational</div>
+                    <div class="scard-val" style="font-size:24px" id="alc-info">0</div>
+                  </div>
+                  <div class="scard green" style="padding:14px">
+                    <div class="scard-label">Resolved</div>
+                    <div class="scard-val" style="font-size:24px" id="alc-res">4</div>
+                  </div>
+                </div>
+                <div style="font-size:13px;color:var(--text-secondary);line-height:1.7;background:var(--bg-secondary);padding:14px;border-radius:10px;border:1px solid var(--border)">
+                  <strong style="color:var(--text-primary)">Predictive Conflict Monitoring Active:</strong><br>
+                  The automated scheduling engine computes vessel approach speeds, local wave height, and crane availability to proactively flag conflicts before docking collisions occur.
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- WEATHER VIEW -->
+        <section class="view" id="view-weather">
+          <h2 style="font-size:20px;font-weight:800;color:var(--text-primary)">Maritime Meteorology & Sea Conditions</h2>
+          
+          <div class="two-col">
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title">Port Weather Station — Rotterdam Sector</div>
+              </div>
+              <div class="wx-grid" id="wx-grid"></div>
+              <div class="wx-alert" id="wx-alert-box"></div>
+            </div>
+
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title">Weather-Constrained Vessels</div>
+              </div>
+              <div class="card-body">
+                <div id="wx-vessels-list" style="display:flex;flex-direction:column;gap:10px"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">12-Hour Wind Forecast (knots)</div>
+            </div>
+            <div class="card-body">
+              <div id="forecast-chart" style="display:flex;align-items:flex-end;gap:8px;height:100px"></div>
+              <div id="forecast-labels" style="display:flex;gap:8px;margin-top:8px;font-size:11px;color:var(--text-muted);font-weight:600"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ADMIN VIEW -->
+        <section class="view" id="view-admin">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <div>
+              <h2 style="font-size:20px;font-weight:800;color:var(--text-primary)">User & Access Management</h2>
+              <p style="font-size:13px;color:var(--text-muted)">Manage authorized personnel accounts and Role-Based Access Controls (RBAC)</p>
+            </div>
+            <button class="btn-acc" onclick="openUserModal()">+ Add New Operator</button>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Authorized Personnel</div>
+              <div class="card-actions">
+                <span id="user-count" style="font-size:12px;font-weight:600;color:var(--text-muted)"></span>
+              </div>
+            </div>
+            <div class="user-grid" id="user-grid"></div>
+          </div>
+        </section>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- ================= VESSEL MODAL ================= -->
+  <div class="modal-overlay" id="vessel-modal">
+    <div class="modal">
+      <div class="modal-hdr">
+        <div class="modal-title">🚢 <span id="vessel-modal-title">Register Vessel</span></div>
+        <button class="modal-x" onclick="closeVesselModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-grid">
+          <div class="fg2 full">
+            <label>Vessel Name</label>
+            <input class="fi" id="v-name" placeholder="e.g. MV Pacific Star" required/>
+          </div>
+          <div class="fg2">
+            <label>IMO Number</label>
+            <input class="fi" id="v-imo" placeholder="e.g. IMO 9123456" required/>
+          </div>
+          <div class="fg2">
+            <label>Flag State</label>
+            <input class="fi" id="v-flag" placeholder="e.g. Liberia, Panama"/>
+          </div>
+          <div class="fg2">
+            <label>Cargo Type</label>
+            <select class="fi" id="v-cargo">
+              <option>Container</option>
+              <option>Bulk Cargo</option>
+              <option>Cold-Chain</option>
+              <option>Liquid Bulk</option>
+              <option>General Cargo</option>
+              <option>LNG</option>
+            </select>
+          </div>
+          <div class="fg2">
+            <label>Priority</label>
+            <select class="fi" id="v-priority">
+              <option value="Standard">Standard</option>
+              <option value="Priority">Priority</option>
+              <option value="Cold-Chain">Cold-Chain (Perishable)</option>
+            </select>
+          </div>
+          <div class="fg2">
+            <label>Estimated Arrival (ETA)</label>
+            <input class="fi" id="v-eta" type="datetime-local" required/>
+          </div>
+          <div class="fg2">
+            <label>Assigned Berth</label>
+            <select class="fi" id="v-berth">
+              <option>Berth 1</option>
+              <option>Berth 2</option>
+              <option>Berth 3</option>
+              <option>Berth 4</option>
+              <option>Berth 5</option>
+              <option>Anchorage A</option>
+            </select>
+          </div>
+          <div class="fg2">
+            <label>Required Cranes</label>
+            <select class="fi" id="v-cranes">
+              <option>1</option>
+              <option>2</option>
+              <option>3</option>
+              <option>4</option>
+            </select>
+          </div>
+          <div class="fg2 full">
+            <label>Operational Status</label>
+            <select class="fi" id="v-status">
+              <option>In Transit</option>
+              <option>Docked</option>
+              <option>Delayed</option>
+              <option>At Anchorage</option>
+              <option>Departing</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="modal-ftr">
+        <button class="btn-sec" onclick="closeVesselModal()">Cancel</button>
+        <button class="btn-acc" onclick="saveVessel()">Save Vessel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= USER MODAL ================= -->
+  <div class="modal-overlay" id="user-modal">
+    <div class="modal">
+      <div class="modal-hdr">
+        <div class="modal-title">👤 Add User Account</div>
+        <button class="modal-x" onclick="closeUserModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-grid">
+          <div class="fg2 full">
+            <label>Full Name</label>
+            <input class="fi" id="nu-name" placeholder="Johnathan Smith" required/>
+          </div>
+          <div class="fg2 full">
+            <label>Email Address</label>
+            <input class="fi" id="nu-email" type="email" placeholder="john@smartport.io" required/>
+          </div>
+          <div class="fg2 full">
+            <label>Assigned Role</label>
+            <select class="fi" id="nu-role">
+              <option value="planner">Port Planner</option>
+              <option value="admin">Administrator</option>
+            </select>
+          </div>
+          <div class="fg2 full">
+            <label>Password</label>
+            <input class="fi" id="nu-pwd" type="password" placeholder="Min 6 characters" required minlength="6"/>
+          </div>
+        </div>
+      </div>
+      <div class="modal-ftr">
+        <button class="btn-sec" onclick="closeUserModal()">Cancel</button>
+        <button class="btn-acc" onclick="saveUser()">Create User</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toast-wrap"></div>
+
+  <!-- Scripts -->
+  <script src="js/api.js"></script>
+  <script src="js/map.js"></script>
+  <script src="js/schedule.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

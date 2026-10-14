@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>SmartPort Connect — Port Management System</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+:root {
+  --bg-primary:#070b14;--bg-secondary:#0d1526;--bg-card:rgba(13,21,38,0.88);
+  --bg-glass:rgba(255,255,255,0.04);--border:rgba(99,179,237,0.13);
+  --border-bright:rgba(99,179,237,0.32);--accent:#3b82f6;
+  --accent-glow:rgba(59,130,246,0.22);--accent2:#06b6d4;--accent3:#8b5cf6;
+  --success:#10b981;--warning:#f59e0b;--danger:#ef4444;
+  --text-primary:#e2e8f0;--text-secondary:#94a3b8;--text-muted:#475569;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg-primary);color:var(--text-primary);overflow:hidden}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border-bright);border-radius:3px}
+
+/* AUTH */
+#auth-screen{position:fixed;inset:0;z-index:9999;background:radial-gradient(ellipse at 30% 20%,rgba(59,130,246,0.13) 0%,transparent 55%),radial-gradient(ellipse at 75% 80%,rgba(139,92,246,0.1) 0%,transparent 55%),var(--bg-primary);display:flex;align-items:center;justify-content:center}
+.auth-bg-grid{position:absolute;inset:0;background-image:linear-gradient(rgba(99,179,237,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(99,179,237,0.04) 1px,transparent 1px);background-size:50px 50px;pointer-events:none}
+.auth-container{width:420px;padding:44px 40px;background:rgba(13,21,38,0.9);border:1px solid var(--border-bright);border-radius:20px;backdrop-filter:blur(24px);box-shadow:0 0 80px rgba(59,130,246,0.1),0 24px 60px rgba(0,0,0,0.6);position:relative;z-index:1}
+.auth-container::before{content:'';position:absolute;top:-1px;left:12%;right:12%;height:2px;background:linear-gradient(90deg,transparent,var(--accent),var(--accent2),transparent)}
+.auth-logo{display:flex;align-items:center;gap:12px;margin-bottom:28px}
+.auth-logo-icon{width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:22px;box-shadow:0 0 24px var(--accent-glow);flex-shrink:0}
+.auth-logo h1{font-size:18px;font-weight:800;color:#fff;letter-spacing:.3px}
+.auth-logo p{font-size:10px;color:var(--text-muted);letter-spacing:1.8px;text-transform:uppercase;margin-top:1px}
+.auth-tabs{display:flex;margin-bottom:24px;border-bottom:1px solid var(--border)}
+.auth-tab{flex:1;padding:10px;background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:14px;font-weight:500;border-bottom:2px solid transparent;transition:all .2s;margin-bottom:-1px}
+.auth-tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.auth-form{display:none;flex-direction:column;gap:14px}
+.auth-form.active{display:flex}
+.fg{display:flex;flex-direction:column;gap:5px}
+.fg label{font-size:11px;font-weight:700;color:var(--text-secondary);letter-spacing:.6px;text-transform:uppercase}
+.fg input,.fg select{background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:10px;padding:11px 13px;color:var(--text-primary);font-size:14px;outline:none;transition:all .2s;width:100%}
+.fg input:focus,.fg select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
+.fg select option{background:#1a2540}
+.btn-primary{width:100%;padding:13px;border:none;border-radius:10px;cursor:pointer;font-size:14px;font-weight:600;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;transition:all .25s;box-shadow:0 4px 20px var(--accent-glow)}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 8px 28px rgba(59,130,246,0.4)}
+.auth-error{color:#f87171;font-size:13px;padding:10px 12px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.25);border-radius:8px;display:none}
+.demo-hint{font-size:11px;color:var(--text-muted);text-align:center;margin-top:6px;padding:8px 12px;background:var(--bg-glass);border-radius:8px;line-height:1.6}
+
+/* APP SHELL */
+#app-shell{display:none;height:100vh;flex-direction:column}
+#app-shell.visible{display:flex}
+
+/* TOPBAR */
+.topbar{height:56px;padding:0 16px;display:flex;align-items:center;justify-content:space-between;background:rgba(7,11,20,0.97);border-bottom:1px solid var(--border);flex-shrink:0;z-index:100}
+.topbar-left{display:flex;align-items:center;gap:10px}
+.top-logo{display:flex;align-items:center;gap:9px}
+.top-logo-icon{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:15px}
+.top-logo-text h1{font-size:15px;font-weight:800;color:#fff}
+.top-logo-text span{font-size:9px;color:var(--accent2);letter-spacing:1.5px;text-transform:uppercase;display:block;line-height:1;margin-top:1px}
+.divider-v{width:1px;height:24px;background:var(--border);margin:0 8px}
+.nav-btn{padding:6px 13px;border:none;border-radius:8px;cursor:pointer;background:transparent;color:var(--text-secondary);font-size:13px;font-weight:500;transition:all .2s}
+.nav-btn:hover{background:var(--bg-glass);color:var(--text-primary)}
+.nav-btn.active{background:rgba(59,130,246,0.15);color:var(--accent)}
+.topbar-right{display:flex;align-items:center;gap:10px}
+.live-badge{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--success);font-weight:700;letter-spacing:.5px}
+.live-dot{width:7px;height:7px;border-radius:50%;background:var(--success);animation:pdot 1.5s ease-in-out infinite}
+@keyframes pdot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(1.5)}}
+.weather-pill{display:flex;align-items:center;gap:5px;padding:5px 11px;background:var(--bg-glass);border:1px solid var(--border);border-radius:9px;font-size:12px;color:var(--text-secondary);cursor:default}
+.weather-pill strong{color:var(--text-primary)}
+.user-pill{display:flex;align-items:center;gap:8px;padding:5px 11px;background:var(--bg-glass);border:1px solid var(--border);border-radius:9px;cursor:pointer;transition:all .2s}
+.user-pill:hover{border-color:var(--border-bright)}
+.u-avatar{width:24px;height:24px;border-radius:7px;background:linear-gradient(135deg,var(--accent3),var(--accent));display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#fff}
+.u-name{font-size:12px;font-weight:600;color:var(--text-primary)}
+.u-role{font-size:9px;color:var(--accent2);text-transform:uppercase;letter-spacing:.8px}
+.btn-logout{padding:5px 11px;border:1px solid rgba(239,68,68,0.3);border-radius:8px;background:rgba(239,68,68,0.07);color:#f87171;font-size:12px;cursor:pointer;transition:all .2s}
+.btn-logout:hover{background:rgba(239,68,68,0.18);border-color:rgba(239,68,68,0.5)}
+
+/* MAIN LAYOUT */
+.main-layout{display:flex;flex:1;overflow:hidden}
+.sidebar{width:220px;flex-shrink:0;background:rgba(7,11,20,0.98);border-right:1px solid var(--border);overflow-y:auto;padding:12px 10px;display:flex;flex-direction:column;gap:2px}
+.sidebar-sec-label{font-size:10px;font-weight:700;color:var(--text-muted);letter-spacing:1.5px;text-transform:uppercase;padding:10px 10px 4px}
+.si{display:flex;align-items:center;gap:9px;padding:9px 11px;border-radius:9px;cursor:pointer;color:var(--text-secondary);font-size:13px;font-weight:500;transition:all .2s}
+.si:hover{background:var(--bg-glass);color:var(--text-primary)}
+.si.active{background:rgba(59,130,246,0.14);color:var(--accent)}
+.si .ic{font-size:15px;width:18px;text-align:center}
+.si .badge{margin-left:auto;padding:1px 6px;border-radius:9px;font-size:10px;font-weight:700;color:#fff}
+.si .badge.red{background:var(--danger)}
+.si .badge.yellow{background:var(--warning);color:#000}
+.si .badge.green{background:var(--success)}
+.sidebar-bottom{margin-top:auto;padding-top:12px;border-top:1px solid var(--border)}
+.port-health{padding:12px;background:var(--bg-glass);border:1px solid var(--border);border-radius:10px}
+.ph-title{font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:10px}
+.ph-row{display:flex;justify-content:space-between;align-items:center;font-size:12px;margin-bottom:6px}
+.ph-k{color:var(--text-muted)}
+.ph-v{font-weight:700}
+.ph-v.g{color:var(--success)}
+.ph-v.y{color:var(--warning)}
+.ph-v.r{color:var(--danger)}
+.ph-bar-wrap{height:4px;background:rgba(255,255,255,0.06);border-radius:2px;margin-top:2px;margin-bottom:8px;overflow:hidden}
+.ph-bar{height:100%;border-radius:2px;transition:width .6s ease}
+
+/* CONTENT */
+.content{flex:1;overflow:auto;padding:18px;display:flex;flex-direction:column;gap:16px}
+.view{display:none}
+.view.active{display:flex;flex-direction:column;gap:16px}
+
+/* STAT CARDS */
+.stat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.scard{background:var(--bg-card);border:1px solid var(--border);border-radius:13px;padding:16px 18px;position:relative;overflow:hidden;transition:border-color .2s;backdrop-filter:blur(10px)}
+.scard:hover{border-color:var(--border-bright)}
+.scard::after{content:'';position:absolute;top:0;left:0;right:0;height:2px}
+.scard.blue::after{background:linear-gradient(90deg,var(--accent),transparent)}
+.scard.cyan::after{background:linear-gradient(90deg,var(--accent2),transparent)}
+.scard.purple::after{background:linear-gradient(90deg,var(--accent3),transparent)}
+.scard.green::after{background:linear-gradient(90deg,var(--success),transparent)}
+.scard.warn::after{background:linear-gradient(90deg,var(--warning),transparent)}
+.scard.red::after{background:linear-gradient(90deg,var(--danger),transparent)}
+.scard-label{font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:7px}
+.scard-val{font-size:30px;font-weight:800;line-height:1;margin-bottom:5px;letter-spacing:-1px}
+.scard-sub{font-size:12px;color:var(--text-secondary)}
+.scard-icon{position:absolute;right:14px;top:14px;font-size:28px;opacity:.12}
+
+/* CARD */
+.card{background:var(--bg-card);border:1px solid var(--border);border-radius:13px;backdrop-filter:blur(10px);overflow:hidden}
+.card-header{padding:13px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.card-title{font-size:13px;font-weight:700;display:flex;align-items:center;gap:7px}
+.card-actions{display:flex;gap:6px;align-items:center}
+.card-body{padding:16px}
+
+/* MAP */
+#map{height:400px}
+.leaflet-container{background:#060d1a!important}
+.leaflet-tile-pane{filter:brightness(.55) saturate(.6) hue-rotate(200deg)}
+.leaflet-popup-content-wrapper{background:rgba(10,18,34,0.97)!important;border:1px solid var(--border-bright)!important;border-radius:12px!important;color:var(--text-primary)!important;box-shadow:0 8px 32px rgba(0,0,0,0.6)!important;padding:0!important}
+.leaflet-popup-content{margin:0!important;color:var(--text-primary)}
+.leaflet-popup-tip{background:rgba(10,18,34,0.97)!important}
+.popup-inner{padding:14px 16px}
+.popup-inner h3{font-size:14px;font-weight:700;color:#fff;margin-bottom:8px}
+.popup-row{display:flex;justify-content:space-between;gap:14px;font-size:12px;margin-bottom:4px}
+.popup-row .pk{color:var(--text-muted)}
+.popup-row .pv{color:var(--text-primary);font-weight:600}
+
+/* VESSEL TABLE */
+.vtable{width:100%;border-collapse:collapse}
+.vtable th{font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.8px;padding:9px 13px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap}
+.vtable td{padding:10px 13px;font-size:13px;border-bottom:1px solid rgba(99,179,237,0.05);white-space:nowrap}
+.vtable tr:hover td{background:rgba(59,130,246,0.04)}
+.vtable tr:last-child td{border-bottom:none}
+.sbadge{display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:600}
+.sbadge::before{content:'';width:5px;height:5px;border-radius:50%;background:currentColor;opacity:.8}
+.sbadge.transit{background:rgba(59,130,246,0.15);color:#60a5fa;border:1px solid rgba(59,130,246,0.28)}
+.sbadge.docked{background:rgba(16,185,129,0.15);color:#34d399;border:1px solid rgba(16,185,129,0.28)}
+.sbadge.delayed{background:rgba(239,68,68,0.15);color:#f87171;border:1px solid rgba(239,68,68,0.28)}
+.sbadge.anchored{background:rgba(245,158,11,0.15);color:#fbbf24;border:1px solid rgba(245,158,11,0.28)}
+.sbadge.departing{background:rgba(139,92,246,0.15);color:#a78bfa;border:1px solid rgba(139,92,246,0.28)}
+.pflag{display:inline-flex;padding:2px 7px;border-radius:5px;font-size:10px;font-weight:700}
+.pflag.cold{background:rgba(6,182,212,0.15);color:var(--accent2);border:1px solid rgba(6,182,212,0.28)}
+.pflag.priority{background:rgba(239,68,68,0.15);color:#f87171;border:1px solid rgba(239,68,68,0.28)}
+.pflag.std{background:rgba(71,85,105,0.25);color:var(--text-muted)}
+.tbl-wrap{overflow-x:auto}
+
+/* WEATHER */
+.wx-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:14px}
+.wx-item{background:var(--bg-glass);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center}
+.wx-icon{font-size:26px;margin-bottom:5px}
+.wx-val{font-size:22px;font-weight:800;margin-bottom:2px}
+.wx-lbl{font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.8px}
+.wx-alert{display:flex;align-items:flex-start;gap:9px;padding:10px 14px;margin:0 14px 14px;background:rgba(245,158,11,0.09);border:1px solid rgba(245,158,11,0.3);border-radius:9px;font-size:12px;color:#fbbf24;line-height:1.5}
+
+/* GANTT */
+.gantt-wrap{overflow-x:auto;padding:14px}
+.gantt-inner{min-width:660px}
+.gantt-hdr{display:flex;margin-bottom:8px}
+.gantt-lbl{width:130px;flex-shrink:0;font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.7px}
+.gantt-hours{flex:1;display:flex}
+.gantt-hr{flex:1;font-size:10px;color:var(--text-muted);text-align:center;padding-bottom:5px;border-bottom:1px solid var(--border)}
+.gantt-row{display:flex;align-items:center;margin-bottom:7px}
+.gantt-berth{width:130px;flex-shrink:0;font-size:12px;color:var(--text-secondary);font-weight:600}
+.gantt-track{flex:1;height:30px;background:rgba(255,255,255,0.015);border:1px solid var(--border);border-radius:6px;position:relative;overflow:hidden}
+.gblock{position:absolute;height:100%;border-radius:5px;display:flex;align-items:center;padding:0 9px;font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;cursor:pointer;transition:filter .15s}
+.gblock:hover{filter:brightness(1.25)}
+.gblock.b{background:linear-gradient(90deg,rgba(59,130,246,.55),rgba(59,130,246,.35));border:1px solid rgba(59,130,246,.45);color:#93c5fd}
+.gblock.g{background:linear-gradient(90deg,rgba(16,185,129,.55),rgba(16,185,129,.35));border:1px solid rgba(16,185,129,.45);color:#6ee7b7}
+.gblock.p{background:linear-gradient(90deg,rgba(139,92,246,.55),rgba(139,92,246,.35));border:1px solid rgba(139,92,246,.45);color:#c4b5fd}
+.gblock.w{background:linear-gradient(90deg,rgba(245,158,11,.55),rgba(245,158,11,.35));border:1px solid rgba(245,158,11,.45);color:#fde68a}
+.gblock.d{background:linear-gradient(90deg,rgba(239,68,68,.55),rgba(239,68,68,.35));border:1px solid rgba(239,68,68,.45);color:#fca5a5;animation:flsh 1.6s ease-in-out infinite}
+@keyframes flsh{0%,100%{opacity:1}50%{opacity:.55}}
+.gnow{position:absolute;top:0;bottom:0;width:2px;background:rgba(239,68,68,.75);z-index:5;pointer-events:none}
+.gnow::after{content:'NOW';position:absolute;top:-16px;left:50%;transform:translateX(-50%);font-size:8px;font-weight:800;color:#ef4444;letter-spacing:.5px}
+.conflict-alert{display:flex;align-items:flex-start;gap:8px;padding:10px 14px;margin:0 14px 14px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.3);border-radius:8px;font-size:12px;color:#fca5a5;animation:flsh 2s ease-in-out infinite;line-height:1.5}
+
+/* ALERTS */
+.alerts-list{display:flex;flex-direction:column;gap:7px;max-height:340px;overflow-y:auto}
+.al{display:flex;gap:10px;padding:11px 13px;background:var(--bg-glass);border:1px solid var(--border);border-radius:9px}
+.al.crit{border-color:rgba(239,68,68,.32);background:rgba(239,68,68,.04)}
+.al.warn{border-color:rgba(245,158,11,.28);background:rgba(245,158,11,.03)}
+.al.info{border-color:rgba(59,130,246,.22)}
+.al-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;margin-top:5px}
+.al.crit .al-dot{background:var(--danger);box-shadow:0 0 6px var(--danger)}
+.al.warn .al-dot{background:var(--warning);box-shadow:0 0 5px var(--warning)}
+.al.info .al-dot{background:var(--accent)}
+.al-msg{font-size:13px;color:var(--text-primary);margin-bottom:2px;line-height:1.4}
+.al-time{font-size:11px;color:var(--text-muted)}
+
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;z-index:500;background:rgba(0,0,0,.72);backdrop-filter:blur(4px);display:none;align-items:center;justify-content:center}
+.modal-overlay.open{display:flex}
+.modal{width:560px;max-height:88vh;overflow-y:auto;background:var(--bg-secondary);border:1px solid var(--border-bright);border-radius:16px;box-shadow:0 0 60px rgba(59,130,246,.14)}
+.modal-hdr{padding:18px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.modal-title{font-size:15px;font-weight:700;display:flex;align-items:center;gap:8px}
+.modal-x{background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:20px;line-height:1;padding:2px 6px;border-radius:6px;transition:all .2s}
+.modal-x:hover{background:var(--bg-glass);color:var(--text-primary)}
+.modal-body{padding:22px}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-grid .full{grid-column:1/-1}
+.fg2{display:flex;flex-direction:column;gap:5px}
+.fg2 label{font-size:11px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px}
+.fi{background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:9px;padding:9px 12px;color:var(--text-primary);font-size:13px;outline:none;transition:all .2s;width:100%}
+.fi:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
+select.fi option{background:#1a2540}
+.modal-ftr{padding:14px 22px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end}
+.btn-sec{padding:8px 16px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--text-secondary);font-size:13px;cursor:pointer;transition:all .2s}
+.btn-sec:hover{border-color:var(--border-bright);color:var(--text-primary)}
+.btn-acc{padding:8px 18px;border:none;border-radius:8px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;box-shadow:0 4px 14px var(--accent-glow)}
+.btn-acc:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(59,130,246,.4)}
+.btn-sm{padding:4px 10px;border-radius:7px;font-size:11px;font-weight:500;cursor:pointer;border:1px solid var(--border);background:var(--bg-glass);color:var(--text-secondary);transition:all .2s;display:inline-flex;align-items:center;gap:3px}
+.btn-sm:hover{border-color:var(--border-bright);color:var(--text-primary)}
+.btn-sm.acc{background:rgba(59,130,246,.14);border-color:rgba(59,130,246,.3);color:var(--accent)}
+.btn-sm.red{background:rgba(239,68,68,.1);border-color:rgba(239,68,68,.3);color:#f87171}
+
+/* USER CARDS */
+.user-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;padding:14px}
+.ucard{background:var(--bg-glass);border:1px solid var(--border);border-radius:11px;padding:14px;display:flex;align-items:center;gap:10px;transition:border-color .2s}
+.ucard:hover{border-color:var(--border-bright)}
+.ucard-av{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;color:#fff;flex-shrink:0}
+.ucard-name{font-size:13px;font-weight:600;margin-bottom:2px}
+.ucard-email{font-size:11px;color:var(--text-muted);margin-bottom:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px}
+.rbadge{display:inline-flex;padding:2px 7px;border-radius:5px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+.rbadge.admin{background:rgba(139,92,246,.2);color:#c4b5fd;border:1px solid rgba(139,92,246,.3)}
+.rbadge.planner{background:rgba(59,130,246,.15);color:#60a5fa;border:1px solid rgba(59,130,246,.25)}
+
+/* TWO-COL */
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.three-col{display:grid;grid-template-columns:2fr 1fr;gap:14px}
+
+/* TOAST */
+#toast-wrap{position:fixed;bottom:18px;right:18px;z-index:9997;display:flex;flex-direction:column;gap:7px;align-items:flex-end}
+.toast{padding:11px 15px;background:rgba(13,21,38,0.97);border:1px solid var(--border-bright);border-radius:10px;font-size:13px;color:var(--text-primary);max-width:300px;box-shadow:0 8px 24px rgba(0,0,0,.5);display:flex;align-items:flex-start;gap:8px;animation:tin .3s ease}
+@keyframes tin{from{transform:translateX(36px);opacity:0}to{transform:translateX(0);opacity:1}}
+.toast.danger{border-color:rgba(239,68,68,.45)}
+.toast.success{border-color:rgba(16,185,129,.38)}
+.toast.warn{border-color:rgba(245,158,11,.38)}
+
+/* MAP LEGEND */
+.map-legend{position:absolute;bottom:14px;left:14px;z-index:400;background:rgba(7,11,20,.9);border:1px solid var(--border);border-radius:9px;padding:10px 13px;font-size:11px}
+.legend-item{display:flex;align-items:center;gap:7px;margin-bottom:4px;color:var(--text-secondary)}
+.legend-item:last-child{margin-bottom:0}
+.legend-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+</style>
+</head>
+<body>
+
+<!-- AUTH SCREEN -->
+<div id="auth-screen">
+  <div class="auth-bg-grid"></div>
+  <div class="auth-container">
+    <div class="auth-logo">
+      <div class="auth-logo-icon">⚓</div>
+      <div><h1>SmartPort Connect</h1><p>Port Management System</p></div>
+    </div>
+    <div class="auth-tabs">
+      <button class="auth-tab active" onclick="switchAuthTab('login',this)">Sign In</button>
+      <button class="auth-tab" onclick="switchAuthTab('signup',this)">Create Account</button>
+    </div>
+    <form class="auth-form active" id="login-form" onsubmit="handleLogin(event)">
+      <div id="login-error" class="auth-error"></div>
+      <div class="fg"><label>Email Address</label><input type="email" id="login-email" placeholder="admin@smartport.io" required/></div>
+      <div class="fg"><label>Password</label><input type="password" id="login-pwd" placeholder="••••••••" required/></div>
+      <button type="submit" class="btn-primary">Sign In to Dashboard</button>
+      <div class="demo-hint"><strong style="color:var(--text-secondary)">Demo Credentials</strong><br>Admin: admin@smartport.io / admin123<br>Planner: planner@smartport.io / planner123</div>
+    </form>
+    <form class="auth-form" id="signup-form" onsubmit="handleSignup(event)">
+      <div id="signup-error" class="auth-error"></div>
+      <div class="fg"><label>Full Name</label><input type="text" id="su-name" placeholder="Jane Doe" required/></div>
+      <div class="fg"><label>Email Address</label><input type="email" id="su-email" placeholder="you@port.io" required/></div>
+      <div class="fg"><label>Role</label><select id="su-role"><option value="planner">Port Planner</option><option value="admin">Admin</option></select></div>
+      <div class="fg"><label>Password</label><input type="password" id="su-pwd" placeholder="Min 6 characters" required minlength="6"/></div>
+      <button type="submit" class="btn-primary">Create Account</button>
+    </form>
+  </div>
+</div>
+
+<!-- APP SHELL -->
+<div id="app-shell">
+  <div class="topbar">
+    <div class="topbar-left">
+      <div class="top-logo"><div class="top-logo-icon">⚓</div><div class="top-logo-text"><h1>SmartPort Connect</h1><span>Port Management System</span></div></div>
+      <div class="divider-v"></div>
+      <button class="nav-btn active" onclick="switchView('dashboard',this)">Dashboard</button>
+      <button class="nav-btn" onclick="switchView('vessels',this)">Fleet</button>
+      <button class="nav-btn" onclick="switchView('schedule',this)">Schedule</button>
+      <button class="nav-btn" id="admin-nav" onclick="switchView('admin',this)" style="display:none">Admin</button>
+    </div>
+    <div class="topbar-right">
+      <div class="live-badge"><div class="live-dot"></div>LIVE</div>
+      <div class="weather-pill"><strong id="top-wx-val">Loading...</strong></div>
+      <div class="user-pill"><div class="u-avatar" id="top-avatar">?</div><div><div class="u-name" id="top-name">--</div><div class="u-role" id="top-role">--</div></div></div>
+      <button class="btn-logout" onclick="handleLogout()">Logout</button>
+    </div>
+  </div>
+  <div class="main-layout">
+    <div class="sidebar">
+      <div class="sidebar-sec-label">Navigation</div>
+      <div class="si active" onclick="switchView('dashboard',null,this)"><span class="ic">📊</span>Overview</div>
+      <div class="si" onclick="switchView('vessels',null,this)"><span class="ic">🚢</span>Fleet Status<span class="badge red" id="sb-delayed">2</span></div>
+      <div class="si" onclick="switchView('schedule',null,this)"><span class="ic">📅</span>Berth Schedule</div>
+      <div class="si" onclick="switchView('alerts',null,this)"><span class="ic">🔔</span>Alerts<span class="badge red" id="sb-alerts">3</span></div>
+      <div class="si" onclick="switchView('weather',null,this)"><span class="ic">🌊</span>Weather</div>
+      <div class="si admin-only" onclick="switchView('admin',null,this)" style="display:none"><span class="ic">👤</span>User Management</div>
+      <div class="sidebar-bottom">
+        <div class="port-health">
+          <div class="ph-title">Port Health</div>
+          <div class="ph-row"><span class="ph-k">Berth Util.</span><span class="ph-v y">78%</span></div>
+          <div class="ph-bar-wrap"><div class="ph-bar" style="width:78%;background:var(--warning)"></div></div>
+          <div class="ph-row"><span class="ph-k">Crane Load</span><span class="ph-v g">62%</span></div>
+          <div class="ph-bar-wrap"><div class="ph-bar" style="width:62%;background:var(--success)"></div></div>
+          <div class="ph-row"><span class="ph-k">Congestion</span><span class="ph-v r">HIGH</span></div>
+          <div class="ph-bar-wrap"><div class="ph-bar" style="width:84%;background:var(--danger)"></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="content">
+
+      <!-- DASHBOARD VIEW -->
+      <div class="view active" id="view-dashboard">
+        <div class="stat-row">
+          <div class="scard blue"><div class="scard-icon">🚢</div><div class="scard-label">Total Vessels</div><div class="scard-val" id="sc-total">--</div><div class="scard-sub">In port zone</div></div>
+          <div class="scard green"><div class="scard-icon">⚓</div><div class="scard-label">Docked</div><div class="scard-val" id="sc-docked">--</div><div class="scard-sub">Active berths</div></div>
+          <div class="scard cyan"><div class="scard-icon">🛳</div><div class="scard-label">In Transit</div><div class="scard-val" id="sc-transit">--</div><div class="scard-sub">Incoming vessels</div></div>
+          <div class="scard red"><div class="scard-icon">⚠</div><div class="scard-label">Delayed</div><div class="scard-val" id="sc-delayed">--</div><div class="scard-sub" style="color:var(--danger)">Needs attention</div></div>
+        </div>
+        <div class="three-col">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Live Vessel Tracking</div>
+              <div class="card-actions"><span style="font-size:11px;color:var(--text-muted)" id="map-vessel-count">-- vessels</span><button class="btn-sm acc" onclick="centerMap()">Re-center</button></div>
+            </div>
+            <div style="position:relative"><div id="map"></div>
+              <div class="map-legend">
+                <div class="legend-item"><div class="legend-dot" style="background:#60a5fa"></div>In Transit</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#34d399"></div>Docked</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#f87171"></div>Delayed</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#fbbf24"></div>Anchorage</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#a78bfa"></div>Departing</div>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header"><div class="card-title">Smart Alerts</div><div class="card-actions"><span style="padding:2px 7px;border-radius:9px;font-size:10px;font-weight:700;color:#fff;background:var(--danger)" id="alert-count-badge">3</span></div></div>
+            <div class="card-body" style="padding:12px"><div class="alerts-list" id="alerts-list"></div></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Fleet at a Glance</div>
+            <div class="card-actions"><button class="btn-sm acc" onclick="openVesselModal()">+ Add Vessel</button><button class="btn-sm" onclick="switchView('vessels')">View All</button></div>
+          </div>
+          <div class="tbl-wrap"><table class="vtable"><thead><tr><th>Vessel</th><th>IMO</th><th>Cargo</th><th>Status</th><th>ETA / Berth</th></tr></thead><tbody id="dash-vessel-tbody"></tbody></table></div>
+        </div>
+      </div>
+
+      <!-- FLEET VIEW -->
+      <div class="view" id="view-vessels">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div><div style="font-size:18px;font-weight:800;color:#fff;margin-bottom:3px">Fleet Management</div><div style="font-size:13px;color:var(--text-muted)">All vessels in port zone</div></div>
+          <button class="btn-acc" onclick="openVesselModal()">+ Add New Vessel</button>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">All Vessels</div>
+            <div class="card-actions">
+              <input class="fi" style="width:190px;padding:5px 10px" placeholder="Search vessels..." oninput="filterVessels(this.value)"/>
+              <select class="fi" style="width:130px;padding:5px 10px" onchange="filterVessels(null,this.value)"><option value="">All Status</option><option>In Transit</option><option>Docked</option><option>Delayed</option><option>At Anchorage</option><option>Departing</option></select>
+            </div>
+          </div>
+          <div class="tbl-wrap"><table class="vtable"><thead><tr><th>Vessel Name</th><th>IMO</th><th>Cargo</th><th>Status</th><th>ETA</th><th>Berth</th><th>Cranes</th><th>Actions</th></tr></thead><tbody id="fleet-tbody"></tbody></table></div>
+        </div>
+      </div>
+
+      <!-- SCHEDULE VIEW -->
+      <div class="view" id="view-schedule">
+        <div><div style="font-size:18px;font-weight:800;color:#fff;margin-bottom:3px">Berth Schedule &amp; Conflict Resolution</div><div style="font-size:13px;color:var(--text-muted)">Gantt-view of berth allocation -- conflicts auto-highlighted</div></div>
+        <div class="conflict-alert"><span style="font-size:16px;flex-shrink:0">⚠</span><span>Scheduling conflict: MV Arctic Breeze (Cold-Chain) will lose Berth 3 slot due to weather delay on MV Pacific Star. Immediate rescheduling recommended.</span></div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">Berth Allocation Timeline (Today)</div><div class="card-actions"><button class="btn-sm acc" onclick="openVesselModal()">+ Schedule Vessel</button></div></div>
+          <div class="gantt-wrap"><div class="gantt-inner" id="gantt-chart"></div></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">Crane Allocation Overview</div></div>
+          <div class="card-body"><div id="crane-chart" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px"></div></div>
+        </div>
+      </div>
+
+      <!-- ALERTS VIEW -->
+      <div class="view" id="view-alerts">
+        <div style="font-size:18px;font-weight:800;color:#fff;margin-bottom:3px">Smart Alert Center</div>
+        <div class="two-col">
+          <div class="card">
+            <div class="card-header"><div class="card-title">Active Alerts</div><div class="card-actions"><button class="btn-sm red" onclick="clearAlerts()">Clear All</button></div></div>
+            <div class="card-body"><div class="alerts-list" id="alerts-list-full"></div></div>
+          </div>
+          <div class="card">
+            <div class="card-header"><div class="card-title">Alert Summary</div></div>
+            <div class="card-body">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+                <div class="scard red" style="padding:12px"><div class="scard-label">Critical</div><div class="scard-val" style="font-size:24px" id="alc-crit">0</div></div>
+                <div class="scard warn" style="padding:12px"><div class="scard-label">Warnings</div><div class="scard-val" style="font-size:24px" id="alc-warn">0</div></div>
+                <div class="scard blue" style="padding:12px"><div class="scard-label">Info</div><div class="scard-val" style="font-size:24px" id="alc-info">0</div></div>
+                <div class="scard green" style="padding:12px"><div class="scard-label">Resolved</div><div class="scard-val" style="font-size:24px" id="alc-res">0</div></div>
+              </div>
+              <div style="font-size:13px;color:var(--text-muted);line-height:1.7"><strong style="color:var(--warning)">Predictive Engine Active</strong><br>The scheduling engine monitors weather, berth occupancy, and cargo priority to proactively flag conflicts before they occur.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- WEATHER VIEW -->
+      <div class="view" id="view-weather">
+        <div style="font-size:18px;font-weight:800;color:#fff;margin-bottom:3px">Port Weather Conditions</div>
+        <div class="two-col">
+          <div class="card">
+            <div class="card-header"><div class="card-title">Current Conditions -- Port of Rotterdam</div></div>
+            <div class="wx-grid" id="wx-grid"></div>
+            <div class="wx-alert" id="wx-alert-box"></div>
+          </div>
+          <div class="card">
+            <div class="card-header"><div class="card-title">Weather-Affected Vessels</div></div>
+            <div class="card-body"><div id="wx-vessels-list" style="display:flex;flex-direction:column;gap:8px"></div></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">Wind Speed Forecast (kn) -- Next 12 Hours</div></div>
+          <div class="card-body">
+            <div id="forecast-chart" style="display:flex;align-items:flex-end;gap:5px;height:90px"></div>
+            <div id="forecast-labels" style="display:flex;gap:5px;margin-top:5px;font-size:10px;color:var(--text-muted)"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ADMIN VIEW -->
+      <div class="view" id="view-admin">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div><div style="font-size:18px;font-weight:800;color:#fff;margin-bottom:3px">User Management</div><div style="font-size:13px;color:var(--text-muted)">Admin-only: manage accounts and RBAC roles</div></div>
+          <button class="btn-acc" onclick="openUserModal()">+ Add User</button>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">Registered Users</div><div class="card-actions"><span id="user-count" style="font-size:12px;color:var(--text-muted)"></span></div></div>
+          <div class="user-grid" id="user-grid"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- VESSEL MODAL -->
+<div class="modal-overlay" id="vessel-modal">
+  <div class="modal">
+    <div class="modal-hdr"><div class="modal-title">🚢 <span id="vessel-modal-title">Add New Vessel</span></div><button class="modal-x" onclick="closeVesselModal()">x</button></div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="fg2 full"><label>Vessel Name</label><input class="fi" id="v-name" placeholder="MV Pacific Star" required/></div>
+        <div class="fg2"><label>IMO Number</label><input class="fi" id="v-imo" placeholder="IMO 9876543" required/></div>
+        <div class="fg2"><label>Flag State</label><input class="fi" id="v-flag" placeholder="Panama"/></div>
+        <div class="fg2"><label>Cargo Type</label><select class="fi" id="v-cargo"><option>Bulk Cargo</option><option>Container</option><option>Cold-Chain</option><option>Liquid Bulk</option><option>General Cargo</option><option>LNG</option></select></div>
+        <div class="fg2"><label>Priority</label><select class="fi" id="v-priority"><option value="Standard">Standard</option><option value="Priority">Priority</option><option value="Cold-Chain">Cold-Chain</option></select></div>
+        <div class="fg2"><label>Expected Arrival (ETA)</label><input class="fi" id="v-eta" type="datetime-local" required/></div>
+        <div class="fg2"><label>Assigned Berth</label><select class="fi" id="v-berth"><option>Berth 1</option><option>Berth 2</option><option>Berth 3</option><option>Berth 4</option><option>Berth 5</option><option>Anchorage A</option></select></div>
+        <div class="fg2"><label>Required Cranes</label><select class="fi" id="v-cranes"><option>1</option><option>2</option><option>3</option><option>4</option></select></div>
+        <div class="fg2 full"><label>Status</label><select class="fi" id="v-status"><option>In Transit</option><option>Docked</option><option>Delayed</option><option>At Anchorage</option><option>Departing</option></select></div>
+      </div>
+    </div>
+    <div class="modal-ftr"><button class="btn-sec" onclick="closeVesselModal()">Cancel</button><button class="btn-acc" onclick="saveVessel()">Save Vessel</button></div>
+  </div>
+</div>
+
+<!-- USER MODAL -->
+<div class="modal-overlay" id="user-modal">
+  <div class="modal">
+    <div class="modal-hdr"><div class="modal-title">Add New User</div><button class="modal-x" onclick="closeUserModal()">x</button></div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="fg2 full"><label>Full Name</label><input class="fi" id="nu-name" placeholder="Jane Smith" required/></div>
+        <div class="fg2 full"><label>Email</label><input class="fi" id="nu-email" type="email" placeholder="jane@port.io" required/></div>
+        <div class="fg2 full"><label>Role</label><select class="fi" id="nu-role"><option value="planner">Port Planner</option><option value="admin">Admin</option></select></div>
+        <div class="fg2 full"><label>Password</label><input class="fi" id="nu-pwd" type="password" placeholder="Min 6 characters" required minlength="6"/></div>
+      </div>
+    </div>
+    <div class="modal-ftr"><button class="btn-sec" onclick="closeUserModal()">Cancel</button><button class="btn-acc" onclick="saveUser()">Create User</button></div>
+  </div>
+</div>
+
+<div id="toast-wrap"></div>
+
+<script>
+var STATE={
+  currentUser:null,
+  users:[
+    {id:1,name:'Alex Morgan',email:'admin@smartport.io',password:'admin123',role:'admin'},
+    {id:2,name:'Sam Torres',email:'planner@smartport.io',password:'planner123',role:'planner'}
+  ],
+  vessels:[
+    {id:1,name:'MV Pacific Star',imo:'IMO 9123456',flag:'Liberia',cargo:'Container',priority:'Priority',eta:'2025-07-18T08:30',berth:'Berth 1',cranes:'3',status:'In Transit',lat:51.95,lng:3.8,destLat:51.985,destLng:4.05},
+    {id:2,name:'MV Arctic Breeze',imo:'IMO 9234567',flag:'Norway',cargo:'Cold-Chain',priority:'Cold-Chain',eta:'2025-07-18T11:30',berth:'Berth 3',cranes:'2',status:'Delayed',lat:51.90,lng:3.5,destLat:51.985,destLng:4.05},
+    {id:3,name:'MV Horizon Pearl',imo:'IMO 9345678',flag:'Panama',cargo:'Bulk Cargo',priority:'Standard',eta:'2025-07-18T07:00',berth:'Berth 2',cranes:'2',status:'Docked',lat:51.988,lng:4.03,destLat:51.988,destLng:4.03},
+    {id:4,name:'MV Thunder Bay',imo:'IMO 9456789',flag:'Marshall Is.',cargo:'LNG',priority:'Priority',eta:'2025-07-18T11:00',berth:'Berth 5',cranes:'1',status:'At Anchorage',lat:51.97,lng:3.7,destLat:51.985,destLng:4.05},
+    {id:5,name:'MV Coral Wind',imo:'IMO 9567890',flag:'Cyprus',cargo:'General Cargo',priority:'Standard',eta:'2025-07-18T06:00',berth:'Berth 4',cranes:'2',status:'Departing',lat:51.99,lng:4.1,destLat:51.85,destLng:3.2},
+    {id:6,name:'MV Caspian Star',imo:'IMO 9678901',flag:'Malta',cargo:'Liquid Bulk',priority:'Standard',eta:'2025-07-18T14:30',berth:'Anchorage A',cranes:'1',status:'In Transit',lat:51.88,lng:3.3,destLat:51.985,destLng:4.05}
+  ],
+  alerts:[
+    {id:1,type:'crit',msg:'MV Arctic Breeze (Cold-Chain) delayed 2h 15m due to Storm Warning. Berth 3 conflict with MV Pacific Star.',time:'2 min ago'},
+    {id:2,type:'crit',msg:'Cold-chain integrity risk: MV Arctic Breeze ETA revised to 11:30. Refrigeration window at risk.',time:'5 min ago'},
+    {id:3,type:'warn',msg:'Strong winds (32 kn) forecast 10:00-14:00. 3 inbound vessels may face approach delays.',time:'12 min ago'},
+    {id:4,type:'warn',msg:'Crane 2 maintenance due in 4h. Berth 1 operations may be affected.',time:'28 min ago'},
+    {id:5,type:'info',msg:'MV Horizon Pearl docking complete. Berth 2 operational. Cargo offload started.',time:'41 min ago'},
+    {id:6,type:'info',msg:'MV Thunder Bay cleared customs. Awaiting berth assignment.',time:'1 hr ago'}
+  ],
+  weather:{temp:14,wind:28,visibility:8,wave:2.1,condition:'Moderate Storm Warning',icon:'Storm'},
+  nextVesselId:7,nextUserId:3,editingVesselId:null,
+  map:null,markers:{},animFrames:{},vesselPositions:{}
+};
+
+function switchAuthTab(tab,btn){
+  document.querySelectorAll('.auth-tab').forEach(function(t){t.classList.remove('active');});
+  document.querySelectorAll('.auth-form').forEach(function(f){f.classList.remove('active');});
+  btn.classList.add('active');
+  document.getElementById(tab+'-form').classList.add('active');
+}
+
+function handleLogin(e){
+  e.preventDefault();
+  var email=document.getElementById('login-email').value.trim();
+  var pwd=document.getElementById('login-pwd').value;
+  var err=document.getElementById('login-error');
+  var user=null;
+  for(var i=0;i<STATE.users.length;i++){if(STATE.users[i].email===email&&STATE.users[i].password===pwd){user=STATE.users[i];break;}}
+  if(!user){err.style.display='block';err.textContent='Invalid email or password.';return;}
+  err.style.display='none';STATE.currentUser=user;
+  try{sessionStorage.setItem('spc_user',JSON.stringify(user));}catch(ex){}
+  launchApp(user);
+}
+
+function handleSignup(e){
+  e.preventDefault();
+  var name=document.getElementById('su-name').value.trim();
+  var email=document.getElementById('su-email').value.trim();
+  var role=document.getElementById('su-role').value;
+  var pwd=document.getElementById('su-pwd').value;
+  var err=document.getElementById('signup-error');
+  for(var i=0;i<STATE.users.length;i++){if(STATE.users[i].email===email){err.style.display='block';err.textContent='Email already registered.';return;}}
+  var u={id:STATE.nextUserId++,name:name,email:email,password:pwd,role:role};
+  STATE.users.push(u);STATE.currentUser=u;
+  try{sessionStorage.setItem('spc_user',JSON.stringify(u));}catch(ex){}
+  err.style.display='none';launchApp(u);
+}
+
+function handleLogout(){
+  STATE.currentUser=null;
+  try{sessionStorage.removeItem('spc_user');}catch(ex){}
+  for(var k in STATE.animFrames)cancelAnimationFrame(STATE.animFrames[k]);
+  STATE.animFrames={};
+  document.getElementById('app-shell').classList.remove('visible');
+  document.getElementById('app-shell').style.display='none';
+  document.getElementById('auth-screen').style.display='flex';
+  if(STATE.map){STATE.map.remove();STATE.map=null;STATE.markers={};STATE.vesselPositions={};}
+}
+
+function launchApp(user){
+  document.getElementById('auth-screen').style.display='none';
+  var shell=document.getElementById('app-shell');
+  shell.style.display='flex';shell.classList.add('visible');
+  document.getElementById('top-avatar').textContent=user.name[0].toUpperCase();
+  document.getElementById('top-name').textContent=user.name;
+  document.getElementById('top-role').textContent=user.role==='admin'?'Administrator':'Port Planner';
+  if(user.role==='admin'){
+    document.getElementById('admin-nav').style.display='';
+    document.querySelectorAll('.admin-only').forEach(function(el){el.style.display='';});
+  }
+  updateStats();renderAlerts();renderFleetTable();renderDashTable();
+  renderGantt();renderCranes();renderWeather();renderUsers();
+  initMap();startWeatherCycle();
+  toast('Welcome back, '+user.name+'!','success');
+}
+
+function switchView(name,navBtn,sideItem){
+  document.querySelectorAll('.view').forEach(function(v){v.classList.remove('active');});
+  var el=document.getElementById('view-'+name);
+  if(el)el.classList.add('active');
+  if(navBtn){document.querySelectorAll('.nav-btn').forEach(function(b){b.classList.remove('active');});navBtn.classList.add('active');}
+  if(sideItem){document.querySelectorAll('.si').forEach(function(s){s.classList.remove('active');});sideItem.classList.add('active');}
+  if(name==='schedule')renderGantt();
+}
+
+function updateStats(){
+  var v=STATE.vessels;
+  document.getElementById('sc-total').textContent=v.length;
+  document.getElementById('sc-docked').textContent=v.filter(function(x){return x.status==='Docked';}).length;
+  document.getElementById('sc-transit').textContent=v.filter(function(x){return x.status==='In Transit';}).length;
+  document.getElementById('sc-delayed').textContent=v.filter(function(x){return x.status==='Delayed';}).length;
+  document.getElementById('sb-delayed').textContent=v.filter(function(x){return x.status==='Delayed';}).length;
+  document.getElementById('map-vessel-count').textContent=v.length+' vessels';
+}
+
+function renderAlerts(){
+  var a=STATE.alerts;
+  document.getElementById('alert-count-badge').textContent=a.filter(function(x){return x.type!=='info';}).length;
+  document.getElementById('sb-alerts').textContent=a.filter(function(x){return x.type==='crit';}).length;
+  var html=a.map(function(al){return'<div class="al '+al.type+'"><div class="al-dot"></div><div><div class="al-msg">'+al.msg+'</div><div class="al-time">'+al.time+'</div></div></div>';}).join('');
+  ['alerts-list','alerts-list-full'].forEach(function(id){var el=document.getElementById(id);if(el)el.innerHTML=html;});
+  document.getElementById('alc-crit').textContent=a.filter(function(x){return x.type==='crit';}).length;
+  document.getElementById('alc-warn').textContent=a.filter(function(x){return x.type==='warn';}).length;
+  document.getElementById('alc-info').textContent=a.filter(function(x){return x.type==='info';}).length;
+  document.getElementById('alc-res').textContent=2;
+}
+
+function clearAlerts(){
+  STATE.alerts=STATE.alerts.filter(function(x){return x.type==='info';});
+  renderAlerts();toast('Alerts cleared','success');
+}
+
+function statusBadge(s){
+  var m={'In Transit':'transit','Docked':'docked','Delayed':'delayed','At Anchorage':'anchored','Departing':'departing'};
+  return'<span class="sbadge '+(m[s]||'transit')+'">'+s+'</span>';
+}
+
+function priorityFlag(p){
+  var m={'Cold-Chain':'cold','Priority':'priority','Standard':'std'};
+  return'<span class="pflag '+(m[p]||'std')+'">'+p+'</span>';
+}
+
+function fmtDate(str){
+  if(!str)return'--';
+  try{var d=new Date(str);return d.toLocaleString('en-GB',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});}
+  catch(e){return str;}
+}
+
+var _ft='',_fs='';
+function filterVessels(txt,status){
+  if(txt!==null&&txt!==undefined)_ft=txt.toLowerCase();
+  if(status!==undefined)_fs=status;
+  renderFleetTable();
+}
+
+function renderFleetTable(){
+  var v=STATE.vessels;
+  if(_ft)v=v.filter(function(x){return x.name.toLowerCase().indexOf(_ft)>=0||x.imo.toLowerCase().indexOf(_ft)>=0;});
+  if(_fs)v=v.filter(function(x){return x.status===_fs;});
+  var isAdmin=STATE.currentUser&&STATE.currentUser.role==='admin';
+  document.getElementById('fleet-tbody').innerHTML=v.length?v.map(function(vessel){
+    return'<tr><td><strong style="color:#fff">'+vessel.name+'</strong><br><span style="font-size:11px;color:var(--text-muted)">'+vessel.flag+'</span></td><td style="color:var(--text-muted)">'+vessel.imo+'</td><td>'+vessel.cargo+' '+priorityFlag(vessel.priority)+'</td><td>'+statusBadge(vessel.status)+'</td><td>'+fmtDate(vessel.eta)+'</td><td style="color:var(--accent2)">'+vessel.berth+'</td><td>'+vessel.cranes+' crane'+(parseInt(vessel.cranes)>1?'s':'')+'</td><td style="display:flex;gap:4px"><button class="btn-sm acc" onclick="openVesselModal('+vessel.id+')">Edit</button>'+(isAdmin?'<button class="btn-sm red" onclick="deleteVessel('+vessel.id+')">Del</button>':'')+'</td></tr>';
+  }).join(''):'<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:20px">No vessels found</td></tr>';
+}
+
+function renderDashTable(){
+  document.getElementById('dash-vessel-tbody').innerHTML=STATE.vessels.slice(0,5).map(function(v){
+    return'<tr><td><strong style="color:#fff">'+v.name+'</strong></td><td style="color:var(--text-muted)">'+v.imo+'</td><td>'+v.cargo+' '+priorityFlag(v.priority)+'</td><td>'+statusBadge(v.status)+'</td><td>'+fmtDate(v.eta)+' -- <span style="color:var(--accent2)">'+v.berth+'</span></td></tr>';
+  }).join('');
+}
+
+function openVesselModal(id){
+  STATE.editingVesselId=id||null;
+  document.getElementById('vessel-modal-title').textContent=id?'Edit Vessel':'Add New Vessel';
+  if(id){
+    var v=null;for(var i=0;i<STATE.vessels.length;i++){if(STATE.vessels[i].id===id){v=STATE.vessels[i];break;}}
+    if(!v)return;
+    ['name','imo','flag','cargo','priority','eta','berth','cranes','status'].forEach(function(f){document.getElementById('v-'+f).value=v[f];});
+  }else{
+    ['v-name','v-imo','v-flag'].forEach(function(i){document.getElementById(i).value='';});
+    document.getElementById('v-eta').value='';
+  }
+  document.getElementById('vessel-modal').classList.add('open');
+}
+
+function closeVesselModal(){document.getElementById('vessel-modal').classList.remove('open');}
+
+function saveVessel(){
+  var name=document.getElementById('v-name').value.trim();
+  var imo=document.getElementById('v-imo').value.trim();
+  if(!name||!imo){toast('Vessel name and IMO are required','danger');return;}
+  var data={name:name,imo:imo,flag:document.getElementById('v-flag').value,
+    cargo:document.getElementById('v-cargo').value,priority:document.getElementById('v-priority').value,
+    eta:document.getElementById('v-eta').value,berth:document.getElementById('v-berth').value,
+    cranes:document.getElementById('v-cranes').value,status:document.getElementById('v-status').value};
+  if(STATE.editingVesselId){
+    var idx=-1;for(var i=0;i<STATE.vessels.length;i++){if(STATE.vessels[i].id===STATE.editingVesselId){idx=i;break;}}
+    if(idx>=0){var merged=STATE.vessels[idx];for(var k in data){merged[k]=data[k];}STATE.vessels[idx]=merged;}
+    toast('Vessel updated: '+name,'success');
+  }else{
+    var lat=51.86+Math.random()*.2,lng=3.2+Math.random()*.8;
+    var newV={id:STATE.nextVesselId++,lat:lat,lng:lng,destLat:51.985,destLng:4.05};
+    for(var k in data){newV[k]=data[k];}
+    STATE.vessels.push(newV);
+    if(data.status==='Delayed'){
+      STATE.alerts.unshift({id:Date.now(),type:'crit',msg:'New vessel '+name+' added with DELAYED status -- verify berth availability.',time:'Just now'});
+      renderAlerts();
+    }
+    toast('Vessel added: '+name,'success');
+  }
+  closeVesselModal();updateStats();renderFleetTable();renderDashTable();renderGantt();
+  if(STATE.map)refreshMapMarkers();
+}
+
+function deleteVessel(id){
+  if(!confirm('Remove this vessel from the registry?'))return;
+  if(STATE.markers[id]){STATE.markers[id].remove();delete STATE.markers[id];}
+  if(STATE.animFrames[id]){cancelAnimationFrame(STATE.animFrames[id]);delete STATE.animFrames[id];}
+  STATE.vessels=STATE.vessels.filter(function(x){return x.id!==id;});
+  updateStats();renderFleetTable();renderDashTable();renderGantt();
+  toast('Vessel removed','warn');
+}
+
+function initMap(){
+  if(STATE.map)return;
+  STATE.map=L.map('map',{center:[51.94,3.8],zoom:10,zoomControl:false,attributionControl:false});
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18}).addTo(STATE.map);
+  L.control.zoom({position:'topright'}).addTo(STATE.map);
+  L.circleMarker([51.985,4.05],{radius:18,color:'rgba(59,130,246,0.5)',fillColor:'rgba(59,130,246,0.08)',fillOpacity:1,weight:2,dashArray:'5,5'}).addTo(STATE.map);
+  L.circleMarker([51.985,4.05],{radius:5,color:'#3b82f6',fillColor:'#60a5fa',fillOpacity:1,weight:1}).addTo(STATE.map).bindTooltip('Port of Rotterdam',{permanent:false});
+  refreshMapMarkers();startShipAnimations();
+}
+
+function getVesselColor(s){
+  var m={'In Transit':'#60a5fa','Docked':'#34d399','Delayed':'#f87171','At Anchorage':'#fbbf24','Departing':'#a78bfa'};
+  return m[s]||'#60a5fa';
+}
+
+function makeVesselIcon(vessel){
+  var c=getVesselColor(vessel.status);
+  var pulse=vessel.status==='Delayed'?'animation:vp 1s ease-in-out infinite':'';
+  var svg='<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28"><style>@keyframes vp{0%,100%{opacity:1}50%{opacity:.3}}</style><circle cx="14" cy="14" r="12" fill="'+c+'" fill-opacity="0.18" stroke="'+c+'" stroke-width="1.5"/><circle cx="14" cy="14" r="5" fill="'+c+'" '+pulse+'/><text x="14" y="7.5" text-anchor="middle" fill="'+c+'" font-size="7.5" font-family="sans-serif">^</text></svg>';
+  return L.divIcon({html:svg,className:'',iconSize:[28,28],iconAnchor:[14,14]});
+}
+
+function refreshMapMarkers(){
+  for(var k in STATE.markers)STATE.markers[k].remove();
+  STATE.markers={};
+  STATE.vessels.forEach(function(vessel){
+    var pos=STATE.vesselPositions[vessel.id]||[vessel.lat,vessel.lng];
+    var m=L.marker(pos,{icon:makeVesselIcon(vessel)}).addTo(STATE.map);
+    m.bindPopup('<div class="popup-inner"><h3>'+vessel.name+'</h3><div class="popup-row"><span class="pk">IMO</span><span class="pv">'+vessel.imo+'</span></div><div class="popup-row"><span class="pk">Cargo</span><span class="pv">'+vessel.cargo+'</span></div><div class="popup-row"><span class="pk">Status</span><span class="pv">'+vessel.status+'</span></div><div class="popup-row"><span class="pk">ETA</span><span class="pv">'+fmtDate(vessel.eta)+'</span></div><div class="popup-row"><span class="pk">Berth</span><span class="pv">'+vessel.berth+'</span></div><div class="popup-row"><span class="pk">Priority</span><span class="pv">'+vessel.priority+'</span></div></div>',{maxWidth:260});
+    STATE.markers[vessel.id]=m;
+  });
+}
+
+function startShipAnimations(){
+  STATE.vessels.forEach(function(vessel){animateVessel(vessel);});
+}
+
+function animateVessel(vessel){
+  if(vessel.status==='Docked')return;
+  var s0=STATE.vesselPositions[vessel.id]||[vessel.lat,vessel.lng];
+  var e0=[vessel.destLat,vessel.destLng];
+  var dur=vessel.status==='Departing'?25000:55000+Math.random()*20000;
+  var t0=null;
+  function step(ts){
+    if(!t0)t0=ts;
+    var p=Math.min((ts-t0)/dur,1);
+    var ease=p<.5?2*p*p:1-Math.pow(-2*p+2,2)/2;
+    var lat=s0[0]+(e0[0]-s0[0])*ease;
+    var lng=s0[1]+(e0[1]-s0[1])*ease;
+    STATE.vesselPositions[vessel.id]=[lat,lng];
+    if(STATE.markers[vessel.id])STATE.markers[vessel.id].setLatLng([lat,lng]);
+    if(p<1)STATE.animFrames[vessel.id]=requestAnimationFrame(step);
+  }
+  STATE.animFrames[vessel.id]=requestAnimationFrame(step);
+}
+
+function centerMap(){if(STATE.map)STATE.map.setView([51.94,3.8],10);}
+
+function renderGantt(){
+  var hours=['06','07','08','09','10','11','12','13','14','15','16','17'];
+  var berths=['Berth 1','Berth 2','Berth 3','Berth 4','Berth 5','Anchorage A'];
+  var sched={'Berth 1':[{l:'MV Pacific Star',s:8.5,d:4,c:'b'}],'Berth 2':[{l:'MV Horizon Pearl',s:6,d:5,c:'g'},{l:'Free slot',s:11,d:1,c:'p'}],'Berth 3':[{l:'CONFLICT ZONE',s:9,d:2.5,c:'w'},{l:'MV Arctic Breeze',s:11.5,d:3.5,c:'d'}],'Berth 4':[{l:'MV Coral Wind',s:6,d:2,c:'p'}],'Berth 5':[{l:'MV Thunder Bay',s:11,d:4,c:'b'}],'Anchorage A':[{l:'MV Caspian Star',s:14.5,d:2,c:'g'}]};
+  var sh=6,th=12,now=new Date(),np=Math.min(Math.max(((now.getHours()+now.getMinutes()/60)-sh)/th*100,0),100);
+  var html='<div class="gantt-hdr"><div class="gantt-lbl">Berth</div><div class="gantt-hours">'+hours.map(function(h){return'<div class="gantt-hr">'+h+':00</div>';}).join('')+'</div></div>';
+  berths.forEach(function(b){
+    var bk=(sched[b]||[]).map(function(bl){var l=((bl.s-sh)/th*100).toFixed(1),w=(bl.d/th*100).toFixed(1);return'<div class="gblock '+bl.c+'" style="left:'+l+'%;width:'+w+'%" title="'+bl.l+'">'+bl.l+'</div>';}).join('');
+    html+='<div class="gantt-row"><div class="gantt-berth">'+b+'</div><div class="gantt-track">'+bk+'<div class="gnow" style="left:'+np.toFixed(1)+'%"></div></div></div>';
+  });
+  document.getElementById('gantt-chart').innerHTML=html;
+}
+
+function renderCranes(){
+  var cranes=[{id:'Crane 1',load:85,status:'Active',vessel:'MV Horizon Pearl'},{id:'Crane 2',load:72,status:'Active',vessel:'MV Pacific Star'},{id:'Crane 3',load:0,status:'Maintenance',vessel:'--'},{id:'Crane 4',load:45,status:'Standby',vessel:'MV Thunder Bay'},{id:'Crane 5',load:60,status:'Active',vessel:'MV Horizon Pearl'},{id:'Crane 6',load:0,status:'Idle',vessel:'--'}];
+  document.getElementById('crane-chart').innerHTML=cranes.map(function(c){
+    var col=c.load>75?'var(--danger)':c.load>40?'var(--warning)':'var(--success)';
+    var sc=c.status==='Maintenance'?'var(--danger)':c.status==='Active'?'var(--success)':'var(--text-muted)';
+    return'<div style="background:var(--bg-glass);border:1px solid var(--border);border-radius:10px;padding:13px"><div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:13px;font-weight:700;color:#fff">Crane: '+c.id+'</span><span style="font-size:11px;font-weight:600;color:'+sc+'">'+c.status+'</span></div><div style="font-size:11px;color:var(--text-muted);margin-bottom:7px">Assigned: '+c.vessel+'</div><div style="height:4px;background:rgba(255,255,255,.06);border-radius:2px;overflow:hidden;margin-bottom:4px"><div style="height:100%;width:'+c.load+'%;background:'+col+';border-radius:2px"></div></div><div style="font-size:11px;color:var(--text-muted)">'+c.load+'% load</div></div>';
+  }).join('');
+}
+
+function renderWeather(){
+  var w=STATE.weather;
+  document.getElementById('wx-grid').innerHTML=[{icon:'🌡',val:w.temp+'C',lbl:'Temperature'},{icon:'💨',val:w.wind+' kn',lbl:'Wind Speed'},{icon:'👁',val:w.visibility+' nm',lbl:'Visibility'},{icon:'🌊',val:w.wave+'m',lbl:'Wave Height'},{icon:'☁',val:'72%',lbl:'Cloud Cover'},{icon:'💧',val:'1013 hPa',lbl:'Pressure'}].map(function(i){return'<div class="wx-item"><div class="wx-icon">'+i.icon+'</div><div class="wx-val">'+i.val+'</div><div class="wx-lbl">'+i.lbl+'</div></div>';}).join('');
+  var sev=w.wind>30?'danger':w.wind>22?'warn':'ok';
+  var sevIcon=sev==='danger'?'[!]':sev==='warn'?'[~]':'[OK]';
+  document.getElementById('wx-alert-box').innerHTML=sevIcon+' <strong>'+w.condition+'</strong> -- Wind '+w.wind+' kn, Waves '+w.wave+'m. '+(sev==='danger'?'Port approach restrictions active.':sev==='warn'?'Caution for vessels under 5,000 DWT.':'Conditions nominal.');
+  document.getElementById('top-wx-val').textContent=w.temp+'C Wind '+w.wind+'kn';
+  var aff=STATE.vessels.filter(function(v){return v.status==='Delayed'||v.status==='At Anchorage';});
+  document.getElementById('wx-vessels-list').innerHTML=aff.length?aff.map(function(v){
+    return'<div style="background:var(--bg-glass);border:1px solid '+(v.status==='Delayed'?'rgba(239,68,68,.3)':'rgba(245,158,11,.3)')+';border-radius:9px;padding:11px 13px"><div style="font-size:13px;font-weight:700;color:#fff;margin-bottom:3px">'+v.name+'</div><div style="font-size:12px;color:var(--text-muted)">'+v.cargo+' - '+v.berth+'</div><div style="font-size:12px;margin-top:4px"><span style="color:'+(v.status==='Delayed'?'#f87171':'#fbbf24')+'">'+(v.status==='Delayed'?'Delayed -- ETA revised':'Waiting at anchorage')+'</span></div></div>';
+  }).join(''):'<div style="color:var(--text-muted);font-size:13px">No vessels currently affected by weather.</div>';
+  var fc=[18,22,28,35,32,30,26,24,20,18,16,14],lb=['06','07','08','09','10','11','12','13','14','15','16','17'],mx=Math.max.apply(null,fc);
+  document.getElementById('forecast-chart').innerHTML=fc.map(function(v,i){var col=v>30?'var(--danger)':v>22?'var(--warning)':'var(--accent)';return'<div style="flex:1;background:'+col+';border-radius:3px 3px 0 0;height:'+Math.round(v/mx*100)+'%;opacity:.7;min-height:4px" title="'+lb[i]+':00 - '+v+'kn"></div>';}).join('');
+  document.getElementById('forecast-labels').innerHTML=lb.map(function(l){return'<div style="flex:1;text-align:center">'+l+'</div>';}).join('');
+}
+
+var _wxStarted=false;
+function startWeatherCycle(){
+  if(_wxStarted)return;_wxStarted=true;
+  setInterval(function(){
+    STATE.weather.wind=Math.round(Math.max(10,Math.min(45,STATE.weather.wind+(Math.random()-.45)*3)));
+    STATE.weather.temp=Math.round((Math.max(10,Math.min(22,STATE.weather.temp+(Math.random()-.5))))*10)/10;
+    STATE.weather.condition=STATE.weather.wind>30?'Storm Warning Active':STATE.weather.wind>22?'Moderate Storm Warning':'Conditions Nominal';
+    STATE.weather.icon=STATE.weather.wind>30?'Storm':STATE.weather.wind>22?'Rain':'Clear';
+    renderWeather();
+    if(STATE.weather.wind>32){
+      var found=null;for(var i=0;i<STATE.vessels.length;i++){if(STATE.vessels[i].status==='In Transit'){found=STATE.vessels[i];break;}}
+      var alreadyFired=false;for(var j=0;j<STATE.alerts.length;j++){if(STATE.alerts[j].id==='windDelay'){alreadyFired=true;break;}}
+      if(found&&!alreadyFired){
+        found.status='Delayed';
+        STATE.alerts.unshift({id:'windDelay',type:'crit',msg:'Wind '+STATE.weather.wind+'kn -- '+found.name+' status changed to DELAYED. ETA recalculated.',time:'Just now'});
+        renderAlerts();updateStats();renderFleetTable();renderDashTable();
+        if(STATE.markers[found.id])STATE.markers[found.id].setIcon(makeVesselIcon(found));
+        toast(found.name+' delayed -- winds '+STATE.weather.wind+'kn!','danger');
+      }
+    }
+  },8000);
+}
+
+function renderUsers(){
+  document.getElementById('user-count').textContent=STATE.users.length+' users';
+  var colors=['linear-gradient(135deg,#3b82f6,#06b6d4)','linear-gradient(135deg,#8b5cf6,#3b82f6)','linear-gradient(135deg,#10b981,#06b6d4)','linear-gradient(135deg,#f59e0b,#ef4444)'];
+  document.getElementById('user-grid').innerHTML=STATE.users.map(function(u,i){
+    var isAdmin=STATE.currentUser&&STATE.currentUser.role==='admin';
+    var delBtn=isAdmin&&u.id!==STATE.currentUser.id?'<button class="btn-sm red" onclick="deleteUser('+u.id+')">Del</button>':'';
+    return'<div class="ucard"><div class="ucard-av" style="background:'+colors[i%4]+'">'+u.name[0].toUpperCase()+'</div><div style="flex:1;min-width:0"><div class="ucard-name">'+u.name+'</div><div class="ucard-email">'+u.email+'</div><span class="rbadge '+u.role+'">'+(u.role==='admin'?'Administrator':'Port Planner')+'</span></div>'+delBtn+'</div>';
+  }).join('');
+}
+
+function openUserModal(){document.getElementById('user-modal').classList.add('open');}
+function closeUserModal(){document.getElementById('user-modal').classList.remove('open');}
+
+function saveUser(){
+  var name=document.getElementById('nu-name').value.trim();
+  var email=document.getElementById('nu-email').value.trim();
+  var role=document.getElementById('nu-role').value;
+  var pwd=document.getElementById('nu-pwd').value;
+  if(!name||!email||!pwd){toast('All fields required','danger');return;}
+  for(var i=0;i<STATE.users.length;i++){if(STATE.users[i].email===email){toast('Email already registered','danger');return;}}
+  STATE.users.push({id:STATE.nextUserId++,name:name,email:email,password:pwd,role:role});
+  closeUserModal();renderUsers();toast('User created: '+name,'success');
+}
+
+function deleteUser(id){
+  if(!confirm('Remove this user?'))return;
+  STATE.users=STATE.users.filter(function(u){return u.id!==id;});
+  renderUsers();toast('User removed','warn');
+}
+
+function toast(msg,type){
+  type=type||'info';
+  var el=document.createElement('div');
+  el.className='toast '+(type);
+  var icons={success:'OK',danger:'!!',warn:'!',info:'i'};
+  el.innerHTML='<span style="font-weight:800;flex-shrink:0">['+( icons[type]||'i')+']</span><span>'+msg+'</span>';
+  document.getElementById('toast-wrap').appendChild(el);
+  setTimeout(function(){el.style.transition='all .3s';el.style.opacity='0';el.style.transform='translateX(36px)';setTimeout(function(){if(el.parentNode)el.parentNode.removeChild(el);},320);},3500);
+}
+
+(function(){
+  try{
+    var stored=sessionStorage.getItem('spc_user');
+    if(stored){var u=JSON.parse(stored);if(u&&u.id){STATE.currentUser=u;launchApp(u);}}
+  }catch(ex){}
+})();
+</script>
+
+</body>
+</html>
